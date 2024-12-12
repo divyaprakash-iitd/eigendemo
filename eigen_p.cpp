@@ -6,7 +6,6 @@
 
 using namespace Eigen;
 
-// Function to read vector from file
 template<typename T>
 std::vector<T> readVectorFromFile(const std::string& filename) {
     std::vector<T> data;
@@ -39,8 +38,8 @@ int main() {
     
     // Read CRS format data from files
     std::vector<double> values = readVectorFromFile<double>("values.txt");
-    std::vector<int> inner_indices = readVectorFromFile<int>("inner_indices.txt");
-    std::vector<int> outer_starts = readVectorFromFile<int>("outer_starts.txt");
+    std::vector<int> column_indices = readVectorFromFile<int>("column_indices.txt");
+    std::vector<int> row_pointers = readVectorFromFile<int>("row_pointers.txt");
     std::vector<double> b = readVectorFromFile<double>("rhs.txt");
     
     // Print some info about the matrix
@@ -54,52 +53,40 @@ int main() {
     
     // Convert CRS format to triplets
     for(int i = 0; i < rows; i++) {
-        for(int j = outer_starts[i]; j < outer_starts[i+1]; j++) {
-            tripletList.push_back(T(i, inner_indices[j], values[j]));
+        for(int j = row_pointers[i]; j < row_pointers[i+1]; j++) {
+            tripletList.push_back(T(i, column_indices[j], values[j]));
         }
     }
 
-    // Create sparse matrix
+    // Rest of the code remains the same...
     SparseMatrix<double> A(rows, cols);
     A.setFromTriplets(tripletList.begin(), tripletList.end());
     A.makeCompressed();
 
-    // Create right hand side vector
     VectorXd b_eigen = Map<VectorXd>(b.data(), b.size());
-
-    // Create BiCGSTAB solver
     BiCGSTAB<SparseMatrix<double>> solver;
-    
-    // Set solver parameters
     solver.setTolerance(1e-6);
     solver.setMaxIterations(1000);
-
-    // Compute and solve
     solver.compute(A);
     VectorXd x = solver.solve(b_eigen);
 
-    // Check if solve was successful
     if(solver.info() != Success) {
         std::cerr << "Solving failed!" << std::endl;
         return -1;
     }
 
-    // Print solution and solver statistics
     std::cout << "Number of iterations: " << solver.iterations() << std::endl;
-    std::cout << "Solution x = \n" << x << std::endl;
     std::cout << "Estimated error: " << solver.error() << std::endl;
 
-    // Save solution to file
     std::ofstream solFile("solution.txt");
     if (solFile.is_open()) {
-        solFile.precision(12);  // Set high precision output
+        solFile.precision(12);
         for(int i = 0; i < x.size(); i++) {
             solFile << x[i] << "\n";
         }
         solFile.close();
     }
 
-    // Compute and print residual
     double residual = (A * x - b_eigen).norm();
     std::cout << "Residual: " << residual << std::endl;
 
